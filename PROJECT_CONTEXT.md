@@ -163,12 +163,16 @@ Un **MCP General** (de plataforma) + **MCPs por Entidad** (aislados) que se crea
 
 ## Estado Actual del Proyecto
 
-**Fase actual**: Fase 0 (Consolidación base)
+**Fase actual**: ✅ **Fase 0 COMPLETADA** - Consolidación base
 **Completado**:
 - ✅ Skeleton de monorepo con estructura básica
 - ✅ Tipos TypeScript para MCP
 - ✅ Spawner básico para gestión de servidores
-- ✅ Tools placeholder implementadas
-- ✅ Sistema de recursos y prompts base
+- ✅ **SDK MCP oficial integrado** (`@modelcontextprotocol/sdk`)
+- ✅ **Servidor MCP funcional** con transporte stdio
+- ✅ **4 herramientas core implementadas**: `bs.create_dataset`, `bs.ingest_url`, `bs.query_entity`, `bs.train_entity`
+- ✅ **Endpoints MCP funcionando**: initialize, tools/list, tools/call
+- ✅ **Pruebas exitosas** con cliente JSON-RPC manual
+- ✅ **Criterio de aceptación cumplido**: cliente puede listar tools y ejecutar `bs.create_dataset`
 
-**Siguiente**: Integrar `@modelcontextprotocol/sdk` y implementar transports reales.
+**Siguiente**: **Fase 1** - Spawner & Manager (semanas 2–3)

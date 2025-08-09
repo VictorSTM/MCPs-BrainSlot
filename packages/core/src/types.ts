@@ -49,7 +49,7 @@ export interface PromptTemplate {
 
 export interface ServerCapabilities {
   protocolVersion: string; // e.g. 2025-06-18
-  tools?: ToolDef[];
+  tools?: ToolDef<unknown>[];
   resources?: ResourceDescriptor[];
   resourceTemplates?: ResourceTemplate[];
   prompts?: PromptTemplate[];

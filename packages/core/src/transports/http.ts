@@ -1,7 +1,10 @@
 /**
- * Placeholder transport hooks. Replace with real MCP HTTP + SSE wiring later.
+ * HTTP+SSE transport integration with @modelcontextprotocol/sdk
  */
-export interface HttpOptions { port: number; host?: string; token?: string }
-export async function attachHttp(_opts: HttpOptions) {
-  // TODO: use @modelcontextprotocol/sdk http server here
+export { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+
+export interface HttpOptions { 
+  port: number; 
+  host?: string; 
+  token?: string; 
 }
