@@ -2,14 +2,23 @@
   "name": "brainslot-mcp",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "build": "pnpm -C packages/core build && pnpm -C packages/entity build",
     "dev": "pnpm -C packages/core dev",
     "dev:entity": "pnpm -C packages/entity dev"
   },
   "devDependencies": {
-    "typescript": "^5.5.4",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "ollama": "^0.5.17"
   }
 }

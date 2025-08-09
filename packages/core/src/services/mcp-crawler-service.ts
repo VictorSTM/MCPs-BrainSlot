@@ -98,9 +98,11 @@ export class CrawlerMCPService {
         if (line.trim().startsWith('{') && line.includes('"jsonrpc"')) {
           const response: MCPResponse = JSON.parse(line);
           this.handleResponse(response);
-        } else if (line.trim() && !line.includes('Extrayendo información') && !line.includes('Converting')) {
-          // Log de debug del crawler
-          console.log(`[CrawlerMCP Debug] ${line}`);
+        } else if (line.trim() && !line.includes('Extrayendo información') && !line.includes('Converting') && !line.includes('[INIT]')) {
+          // Log de debug del crawler (filtrar logs de crawl4ai)
+          if (!line.includes('WARNING') && !line.includes('warning:')) {
+            console.log(`[CrawlerMCP Debug] ${line}`);
+          }
         }
       } catch (error) {
         // Ignorar líneas que no son JSON-RPC válido
@@ -137,6 +139,11 @@ export class CrawlerMCPService {
   }
 
   private async initialize(): Promise<void> {
+    console.log(`📡 [CrawlerMCP] Initializing MCP connection...`);
+
+    // Esperar más tiempo para que el proceso se inicialice completamente
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
     const response = await this.sendRequest('initialize', {
       protocolVersion: '2025-06-18',
       capabilities: {
@@ -150,15 +157,33 @@ export class CrawlerMCPService {
       }
     });
 
-    // Obtener lista de herramientas del crawler
-    const toolsResponse = await this.sendRequest('tools/list');
+    if (response.error) {
+      throw new Error(`MCP initialization failed: ${response.error.message}`);
+    }
+
+    console.log(`✅ [CrawlerMCP] MCP initialized successfully`);
+
+    // Esperar un poco más después de la inicialización
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Enviar notificación initialized (requerida por el protocolo MCP)
+    console.log(`📡 [CrawlerMCP] Sending initialized notification...`);
+    await this.sendNotification('notifications/initialized');
+    
+    // Esperar un poco más después de la notificación
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Skip tools/list since it's not working with this MCP implementation
+    // Instead, use known tools from the MCP Python implementation
+    console.log(`⚠️ [CrawlerMCP] Using known tools (tools/list not supported by this MCP)`);
     
     this.capabilities = {
-      tools: toolsResponse.tools?.map((t: any) => t.name) || ['usd_to_eur', 'extraer_info_web'],
-      version: response.serverInfo?.version || '1.0.0',
+      tools: ['extraer_info_web', 'usd_to_eur'], // Known tools from the MCP Python code
+      version: response.result?.serverInfo?.version || '1.0.0',
       features: ['web-crawling', 'crawl4ai', 'markdown-extraction', 'async-processing']
     };
 
+    console.log(`🔧 [CrawlerMCP] Available tools:`, this.capabilities.tools);
     this.initialized = true;
   }
 
@@ -238,6 +263,21 @@ export class CrawlerMCPService {
     return response.content?.[0]?.text || response;
   }
 
+  private async sendNotification(method: string, params?: any): Promise<void> {
+    if (!this.process?.stdin) {
+      throw new Error('Crawler MCP process not running');
+    }
+
+    const notification = {
+      jsonrpc: '2.0',
+      method,
+      params
+    };
+
+    const notificationStr = JSON.stringify(notification) + '\n';
+    this.process.stdin.write(notificationStr);
+  }
+
   private async sendRequest(method: string, params?: any): Promise<any> {
     if (!this.process?.stdin) {
       throw new Error('Crawler MCP process not running');
@@ -255,7 +295,7 @@ export class CrawlerMCPService {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(new Error(`Crawler MCP request ${method} timed out`));
-      }, 30000);
+      }, 60000); // Aumentado a 60 segundos para crawling
 
       this.pendingRequests.set(id, { resolve, reject, timeout });
 
