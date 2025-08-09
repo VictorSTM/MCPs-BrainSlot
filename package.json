@@ -1,0 +1,15 @@
+{
+  "name": "brainslot-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "pnpm -C packages/core build && pnpm -C packages/entity build",
+    "dev": "pnpm -C packages/core dev",
+    "dev:entity": "pnpm -C packages/entity dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "tsx": "^4.19.0"
+  }
+}
