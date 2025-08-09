@@ -1,0 +1,3 @@
+[submodule "external-mcps/crawler-mcp"]
+	path = external-mcps/crawler-mcp
+	url = https://github.com/PanteonProyect/MCP-example.git

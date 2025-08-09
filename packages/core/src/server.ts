@@ -36,7 +36,7 @@ export class BrainSlotServer<C extends ServerContext = ServerContext> implements
   capabilities(): ServerCapabilities {
     return {
       protocolVersion: this.protocolVersion,
-      tools: Array.from(this.registry.tools.values()),
+      tools: Array.from(this.registry.tools.values()) as ToolDef<unknown>[],
       resources: this.registry.resources,
       resourceTemplates: this.registry.resourceTemplates,
       prompts: Array.from(this.registry.prompts.values()),

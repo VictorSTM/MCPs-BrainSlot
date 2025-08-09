@@ -8,3 +8,5 @@ export * from "./prompts";
 export * from "./transports/stdio";
 export * from "./transports/http";
 export * from "./spawner";
+export * from "./services/mcp-crawler-service";
+export * from "./simple-crawler-integration";

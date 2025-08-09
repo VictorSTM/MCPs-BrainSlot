@@ -1,0 +1,235 @@
+/**
+ * Servicio que gestiona el MCP de Crawling (Python) como un servicio especializado
+ * Mantiene todas las características del MCP original desarrollado por el equipo
+ */
+import { spawn } from 'child_process';
+import { createInterface } from 'readline';
+export class CrawlerMCPService {
+    config;
+    ctx;
+    process = null;
+    readline = null;
+    requestId = 1;
+    pendingRequests = new Map();
+    initialized = false;
+    capabilities = null;
+    constructor(config, ctx) {
+        this.config = config;
+        this.ctx = ctx;
+    }
+    async start() {
+        if (this.process) {
+            throw new Error('Crawler MCP already started');
+        }
+        console.log(`🕷️ [CrawlerMCP] Iniciando servicio especializado de crawling (Python)`);
+        console.log(`   Command: ${this.config.command} ${this.config.args.join(' ')}`);
+        console.log(`   CWD: ${this.config.cwd}`);
+        console.log(`   EntityId: ${this.ctx.entityId || 'general'}`);
+        // Configurar variables de entorno específicas para el crawler
+        const crawlerEnv = {
+            ...process.env,
+            ...this.config.env,
+            // Pasar contexto de BrainSlot al crawler
+            BRAINSLOT_ENTITY_ID: this.ctx.entityId || '',
+            BRAINSLOT_DATA_ROOT: this.ctx.dataRoot,
+            BRAINSLOT_NAMESPACE: this.ctx.entityId ? `bs://entities/${this.ctx.entityId}` : 'bs://global'
+        };
+        this.process = spawn(this.config.command, this.config.args, {
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: crawlerEnv,
+            cwd: this.config.cwd
+        });
+        if (!this.process.stdout || !this.process.stdin) {
+            throw new Error('Failed to create crawler MCP process streams');
+        }
+        // Configurar comunicación JSON-RPC
+        this.readline = createInterface({
+            input: this.process.stdout
+        });
+        this.readline.on('line', (line) => {
+            try {
+                // Filtrar logs de Python y solo procesar JSON-RPC
+                if (line.trim().startsWith('{') && line.includes('"jsonrpc"')) {
+                    const response = JSON.parse(line);
+                    this.handleResponse(response);
+                }
+                else if (line.trim() && !line.includes('Extrayendo información') && !line.includes('Converting')) {
+                    // Log de debug del crawler
+                    console.log(`[CrawlerMCP Debug] ${line}`);
+                }
+            }
+            catch (error) {
+                // Ignorar líneas que no son JSON-RPC válido
+                if (line.trim() && line.includes('Error')) {
+                    console.error(`[CrawlerMCP] ${line}`);
+                }
+            }
+        });
+        // Manejar errores y logs del crawler
+        this.process.stderr?.on('data', (data) => {
+            const logLine = data.toString().trim();
+            console.error(`[CrawlerMCP] ${logLine}`);
+        });
+        this.process.on('exit', (code, signal) => {
+            console.log(`[CrawlerMCP] Process exited with code ${code}, signal ${signal}`);
+            this.cleanup();
+        });
+        this.process.on('error', (error) => {
+            console.error(`[CrawlerMCP] Process error:`, error);
+            this.cleanup();
+        });
+        // Inicializar el MCP y obtener capabilities
+        await this.initialize();
+        console.log(`✅ [CrawlerMCP] Servicio iniciado correctamente`);
+        console.log(`   Tools: ${this.capabilities?.tools.join(', ')}`);
+        console.log(`   Features: ${this.capabilities?.features.join(', ')}`);
+        return this.capabilities;
+    }
+    async initialize() {
+        const response = await this.sendRequest('initialize', {
+            protocolVersion: '2025-06-18',
+            capabilities: {
+                tools: {},
+                resources: {},
+                prompts: {}
+            },
+            clientInfo: {
+                name: 'brainslot-mcp',
+                version: '0.1.0'
+            }
+        });
+        // Obtener lista de herramientas del crawler
+        const toolsResponse = await this.sendRequest('tools/list');
+        this.capabilities = {
+            tools: toolsResponse.tools?.map((t) => t.name) || ['usd_to_eur', 'extraer_info_web'],
+            version: response.serverInfo?.version || '1.0.0',
+            features: ['web-crawling', 'crawl4ai', 'markdown-extraction', 'async-processing']
+        };
+        this.initialized = true;
+    }
+    async crawlUrl(url, options = {}) {
+        if (!this.initialized) {
+            throw new Error('Crawler MCP not initialized');
+        }
+        console.log(`🕷️ [CrawlerMCP] Crawling URL: ${url}`);
+        console.log(`   Options:`, JSON.stringify(options, null, 2));
+        // Usar la herramienta específica del crawler MCP (Python)
+        const result = await this.callTool('extraer_info_web', {
+            url
+        });
+        console.log(`✅ [CrawlerMCP] Crawling completed`);
+        // Adaptar el resultado para que sea compatible con la interfaz esperada
+        return {
+            url,
+            title: this.extractTitle(result),
+            content: result,
+            markdown: result,
+            totalContentSize: result.length,
+            pagesProcessed: 1,
+            featuresUsed: ['crawl4ai', 'markdown-extraction'],
+            timestamp: new Date().toISOString(),
+            success: !result.includes('Error al extraer')
+        };
+    }
+    extractTitle(content) {
+        // Extraer título de markdown
+        const titleMatch = content.match(/^#\s+(.+)$/m);
+        if (titleMatch) {
+            return titleMatch[1];
+        }
+        // Buscar en las primeras líneas
+        const lines = content.split('\n').slice(0, 5);
+        for (const line of lines) {
+            if (line.trim() && line.length > 10 && line.length < 100) {
+                return line.trim();
+            }
+        }
+        return 'Untitled Page';
+    }
+    async convertCurrency(amount) {
+        if (!this.initialized) {
+            throw new Error('Crawler MCP not initialized');
+        }
+        console.log(`💱 [CrawlerMCP] Converting ${amount} USD to EUR`);
+        const result = await this.callTool('usd_to_eur', {
+            amount
+        });
+        return result;
+    }
+    async callTool(name, arguments_) {
+        if (!this.initialized) {
+            throw new Error('Crawler MCP not initialized');
+        }
+        console.log(`🔧 [CrawlerMCP] Calling tool: ${name}`);
+        const response = await this.sendRequest('tools/call', {
+            name,
+            arguments: arguments_
+        });
+        return response.content?.[0]?.text || response;
+    }
+    async sendRequest(method, params) {
+        if (!this.process?.stdin) {
+            throw new Error('Crawler MCP process not running');
+        }
+        const id = this.requestId++;
+        const request = {
+            jsonrpc: '2.0',
+            id,
+            method,
+            params
+        };
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.pendingRequests.delete(id);
+                reject(new Error(`Crawler MCP request ${method} timed out`));
+            }, 30000);
+            this.pendingRequests.set(id, { resolve, reject, timeout });
+            const requestStr = JSON.stringify(request) + '\n';
+            this.process.stdin.write(requestStr);
+        });
+    }
+    handleResponse(response) {
+        const pending = this.pendingRequests.get(response.id);
+        if (!pending) {
+            console.warn(`[CrawlerMCP] Received response for unknown request ID: ${response.id}`);
+            return;
+        }
+        clearTimeout(pending.timeout);
+        this.pendingRequests.delete(response.id);
+        if (response.error) {
+            pending.reject(new Error(`Crawler MCP Error: ${response.error.message}`));
+        }
+        else {
+            pending.resolve(response.result);
+        }
+    }
+    cleanup() {
+        for (const [id, pending] of this.pendingRequests) {
+            clearTimeout(pending.timeout);
+            pending.reject(new Error('Crawler MCP process terminated'));
+        }
+        this.pendingRequests.clear();
+        this.readline?.close();
+        this.readline = null;
+        this.process = null;
+        this.initialized = false;
+        this.capabilities = null;
+    }
+    async stop() {
+        if (this.process) {
+            console.log(`🛑 [CrawlerMCP] Stopping crawler service`);
+            this.process.kill('SIGTERM');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            if (this.process && !this.process.killed) {
+                console.log(`🔥 [CrawlerMCP] Force killing crawler process`);
+                this.process.kill('SIGKILL');
+            }
+        }
+    }
+    isRunning() {
+        return this.initialized && this.process !== null;
+    }
+    getCapabilities() {
+        return this.capabilities;
+    }
+}

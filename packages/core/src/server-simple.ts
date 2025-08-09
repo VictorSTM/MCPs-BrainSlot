@@ -134,6 +134,17 @@ export class SimpleBrainSlotServer {
     );
   }
 
+  async start(opts?: { stdio?: boolean; http?: { port: number; host?: string; token?: string } }): Promise<void> {
+    if (opts?.stdio) {
+      await this.startStdio();
+    } else if (opts?.http) {
+      // Para simplicidad, usar stdio por ahora
+      await this.startStdio();
+    } else {
+      await this.startStdio();
+    }
+  }
+
   async startStdio() {
     if (this.running) return;
     this.running = true;
